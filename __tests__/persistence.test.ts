@@ -1,3 +1,4 @@
+
 /**
  * NOTA: Este é um arquivo de teste conceitual. Em uma aplicação real,
  * a lógica de persistência testada aqui está integrada ao componente React (`App.tsx`).
@@ -211,30 +212,30 @@ describe('Funcionalidades de Persistência', () => {
     });
 
     const mockState = {
-        courseIdea: 'Podcast de Teste',
-        courseSources: 'Algumas fontes',
+        podcastIdea: 'Podcast de Teste',
+        podcastSources: 'Algumas fontes',
         uploadedFileNames: ['arquivo1.txt'],
         speakers: [{ id: 1, name: 'Apresentador', voiceId: 'Zephyr' }],
-        lessons: [
-            { id: 101, title: 'Lição 1', content: 'Roteiro...', isExpanded: true, generatedAudio: 'audio_data_base64' },
-            { id: 102, title: 'Lição 2', content: 'Mais roteiro...', isExpanded: false }
+        segments: [
+            { id: 101, title: 'Segmento 1', content: 'Roteiro...', isExpanded: true, generatedAudio: 'audio_data_base64' },
+            { id: 102, title: 'Segmento 2', content: 'Mais roteiro...', isExpanded: false }
         ],
     };
 
     // Função simulada de `handleSaveProject` de App.tsx
     const handleSaveProject = () => {
-        const { courseIdea, courseSources, uploadedFileNames, speakers, lessons } = mockState;
+        const { podcastIdea, podcastSources, uploadedFileNames, speakers, segments } = mockState;
         const stateToSave = {
-            courseIdea,
-            courseSources,
+            podcastIdea,
+            podcastSources,
             uploadedFileNames,
             speakers,
-            lessons: lessons.map(({ generatedAudio, isExpanded, ...rest }) => rest), // Remove dados não persistentes
+            segments: segments.map(({ generatedAudio, isExpanded, ...rest }) => rest), // Remove dados não persistentes
         };
         const blob = new Blob([JSON.stringify(stateToSave, null, 2)], { type: 'application/json' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        const fileName = (courseIdea || 'podcast_project').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const fileName = (podcastIdea || 'podcast_project').replace(/[^a-z0-9]/gi, '_').toLowerCase();
         link.download = `${fileName}.json`;
         document.body.appendChild(link);
         link.click();
@@ -255,7 +256,7 @@ describe('Funcionalidades de Persistência', () => {
         if (window.confirm("Tem certeza?")) {
             // Validação simples
             const loadedState = JSON.parse(jsonText);
-            if (!loadedState.lessons || !loadedState.speakers) {
+            if (!loadedState.segments || !loadedState.speakers) {
                 throw new Error("JSON inválido.");
             }
             localStorage.setItem('ia-podcast-narrator-state', jsonText);
@@ -278,7 +279,7 @@ describe('Funcionalidades de Persistência', () => {
                 try {
                     const text = event.target?.result as string;
                     const loadedState = JSON.parse(text);
-                    if (!loadedState.lessons || !loadedState.speakers) {
+                    if (!loadedState.segments || !loadedState.speakers) {
                         throw new Error("Estrutura de arquivo inválida");
                     }
                     localStorage.setItem('ia-podcast-narrator-state', text);
@@ -299,7 +300,7 @@ describe('Funcionalidades de Persistência', () => {
             handleSaveProject();
             const stateToSave = {
                 ...mockState,
-                lessons: mockState.lessons.map(({ generatedAudio, isExpanded, ...rest }) => rest),
+                segments: mockState.segments.map(({ generatedAudio, isExpanded, ...rest }) => rest),
             };
             
             // FIX: Access the mock correctly.
@@ -341,8 +342,8 @@ describe('Funcionalidades de Persistência', () => {
 
     describe('handleImportFromText', () => {
          const validJson = JSON.stringify({
-            courseIdea: "Importado",
-            lessons: [],
+            podcastIdea: "Importado",
+            segments: [],
             speakers: []
         });
 
@@ -355,7 +356,7 @@ describe('Funcionalidades de Persistência', () => {
 
         it('deve lançar um erro com JSON inválido', () => {
             confirmMock.mockImplementation(() => true);
-            const invalidJson = '{"key": "value"}'; // Falta 'lessons'
+            const invalidJson = '{"key": "value"}'; // Falta 'segments'
             assert.rejects(() => {
                 handleImportFromText(invalidJson);
                 return Promise.resolve();
@@ -365,8 +366,8 @@ describe('Funcionalidades de Persistência', () => {
     
     describe('handleLoadProject', () => {
         const validJson = JSON.stringify({
-            courseIdea: "Carregado de arquivo",
-            lessons: [],
+            podcastIdea: "Carregado de arquivo",
+            segments: [],
             speakers: []
         });
         const validFile = new Blob([validJson], { type: 'application/json' });

@@ -1,118 +1,53 @@
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
-
-// Informa ao TypeScript sobre as variáveis globais injetadas pelos scripts no index.html
-declare var mammoth: any;
-declare var XLSX: any;
-
-// Configura o worker para a biblioteca PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
+// Este arquivo agora gerencia a comunicação com o Web Worker.
 
 /**
- * Lê um arquivo como um ArrayBuffer.
- * @param file O arquivo a ser lido.
- * @returns Uma promessa que resolve com o ArrayBuffer do arquivo.
+ * Executa o processo de análise de arquivo em um Web Worker para evitar o bloqueio da thread principal.
+ * @param file O arquivo a ser analisado.
+ * @returns Uma promessa que resolve com o conteúdo de texto extraído do arquivo.
  */
-function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+function runParserWorker(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
-        reader.onerror = (e) => reject(new Error(`Erro ao ler o arquivo: ${e.target?.error?.message}`));
-        reader.readAsArrayBuffer(file);
+        // Cria uma nova instância do nosso worker.
+        const worker = new Worker('/services/parser.worker.js');
+
+        // Lida com mensagens de sucesso do worker.
+        worker.onmessage = (event: MessageEvent) => {
+            const { success, content, error } = event.data;
+            if (success) {
+                resolve(content);
+            } else {
+                reject(new Error(error));
+            }
+            worker.terminate(); // Limpa o worker após a conclusão.
+        };
+
+        // Lida com erros que podem ocorrer no worker.
+        worker.onerror = (error: ErrorEvent) => {
+            reject(new Error(`Erro no Worker: ${error.message}`));
+            worker.terminate(); // Limpa o worker em caso de erro.
+        };
+
+        // Envia o arquivo para o worker iniciar o processamento.
+        worker.postMessage(file);
     });
 }
 
+
 /**
- * Extrai texto de um arquivo PDF.
- * @param file O arquivo PDF.
- * @returns Uma promessa que resolve com o texto extraído.
+ * Obtém o conteúdo de texto bruto de um arquivo com base em seu tipo, usando um Web Worker.
+ * @param file O arquivo a ser processado.
+ * @returns Uma promessa que resolve com o conteúdo de texto bruto do arquivo.
  */
-async function parsePdf(file: File): Promise<string> {
-    const arrayBuffer = await readFileAsArrayBuffer(file);
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-    }
-    return fullText;
+export async function getFileContent(file: File): Promise<string> {
+    return runParserWorker(file);
 }
 
 /**
- * Extrai texto de um arquivo DOCX.
- * @param file O arquivo DOCX.
- * @returns Uma promessa que resolve com o texto extraído.
- */
-async function parseDocx(file: File): Promise<string> {
-    const arrayBuffer = await readFileAsArrayBuffer(file);
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value;
-}
-
-/**
- * Extrai texto de um arquivo de planilha (XLSX, CSV).
- * @param file O arquivo de planilha.
- * @returns Uma promessa que resolve com o texto extraído em formato CSV.
- */
-async function parseSpreadsheet(file: File): Promise<string> {
-    const arrayBuffer = await readFileAsArrayBuffer(file);
-    const workbook = XLSX.read(arrayBuffer, { type: 'buffer' });
-    let fullText = '';
-    workbook.SheetNames.forEach(sheetName => {
-        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-        if (workbook.SheetNames.length > 1) {
-             fullText += `\n--- Planilha: ${sheetName} ---\n`;
-        }
-        fullText += csv + '\n';
-    });
-    return fullText;
-}
-
-/**
- * Lê o conteúdo de um arquivo de texto simples.
- * @param file O arquivo de texto.
- * @returns Uma promessa que resolve com o conteúdo do arquivo.
- */
-function parseText(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = (e) => reject(new Error(`Erro ao ler o arquivo de texto: ${e.target?.error?.message}`));
-        reader.readAsText(file);
-    });
-}
-
-/**
- * Analisa um arquivo, extrai seu conteúdo de texto com base na extensão e o envolve com metadados.
+ * Analisa um arquivo, extrai seu conteúdo de texto usando o worker e o envolve com metadados.
  * @param file O arquivo a ser processado.
  * @returns Uma promessa que resolve com o texto formatado do arquivo.
  */
 export async function parseFile(file: File): Promise<string> {
-    const extension = file.name.split('.').pop()?.toLowerCase() || '';
-    
-    let contentPromise: Promise<string>;
-
-    switch (extension) {
-        case 'pdf':
-            contentPromise = parsePdf(file);
-            break;
-        case 'docx':
-            contentPromise = parseDocx(file);
-            break;
-        case 'xlsx':
-        case 'xls':
-        case 'csv':
-            contentPromise = parseSpreadsheet(file);
-            break;
-        case 'txt':
-        case 'md':
-        case 'text':
-            contentPromise = parseText(file);
-            break;
-        default:
-            return Promise.reject(new Error(`Tipo de arquivo não suportado: .${extension}`));
-    }
-
-    const content = await contentPromise;
+    const content = await getFileContent(file);
     return `\n\n--- Início do arquivo: ${file.name} ---\n${content}\n--- Fim do arquivo: ${file.name} ---`;
 }

@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface ProgressBarProps {
@@ -15,7 +16,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, text }) => {
       <div className="flex justify-between items-baseline text-sm">
         <p className="font-semibold text-indigo-300 truncate pr-4" title={text}>{text}</p>
         <p className="text-gray-400 font-mono whitespace-nowrap">
-          Aula {Math.min(current, total)} de {total}
+          Passo {Math.min(current, total)} de {total}
         </p>
       </div>
       <div className="relative w-full bg-gray-800 rounded-full h-3 overflow-hidden">

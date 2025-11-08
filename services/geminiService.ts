@@ -89,7 +89,7 @@ export async function getSegmentContent(apiKey: string, podcastIdea: string, seg
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        script: {
+                        content: {
                             type: Type.STRING,
                             description: "O roteiro completo do diálogo entre os apresentadores."
                         },
@@ -97,7 +97,7 @@ export async function getSegmentContent(apiKey: string, podcastIdea: string, seg
                             type: Type.STRING,
                             description: "Uma única string contendo de 3 a 5 pontos-chave, cada um em uma nova linha começando com um hífen."
                         },
-                        activity: {
+                        activitySuggestion: {
                             type: Type.STRING,
                             description: "Uma sugestão de tópico para aprofundamento, pergunta para reflexão ou link para discussão."
                         }
@@ -108,14 +108,14 @@ export async function getSegmentContent(apiKey: string, podcastIdea: string, seg
         
         const parsedResponse = JSON.parse(response.text);
 
-        if (!parsedResponse || typeof parsedResponse.script === 'undefined') {
+        if (!parsedResponse || typeof parsedResponse.content === 'undefined') {
             throw new Error("A resposta da API não continha um roteiro válido.");
         }
 
         return {
-            content: parsedResponse.script || '',
+            content: parsedResponse.content || '',
             keyPoints: parsedResponse.keyPoints || '',
-            activitySuggestion: parsedResponse.activity || ''
+            activitySuggestion: parsedResponse.activitySuggestion || ''
         };
     } catch (error) {
         console.error("Erro ao gerar conteúdo do segmento:", error);

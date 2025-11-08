@@ -9,12 +9,14 @@ import { ChevronDownIcon } from '../components/icons/ChevronDownIcon';
 import { LightbulbIcon } from '../components/icons/LightbulbIcon';
 import { SpeakerIcon } from '../components/icons/SpeakerIcon';
 import { StatusIndicator } from '../components/StatusIndicator';
+import { LoadIcon } from '../components/icons/LoadIcon';
 
 interface SegmentItemProps {
     segment: Segment;
     index: number;
     isLoadingContent: boolean;
     isLoadingNarration: boolean;
+    isLoadingScript: boolean;
     activeTab: 'script' | 'points' | 'activity';
     onUpdate: <TKey extends keyof Segment>(field: TKey, value: Segment[TKey]) => void;
     onRemove: () => void;
@@ -22,6 +24,7 @@ interface SegmentItemProps {
     onGenerateContent: () => void;
     onNarrate: () => void;
     onSetActiveTab: (tab: 'script' | 'points' | 'activity') => void;
+    onLoadScript: () => void;
 }
 
 export const LessonItem: React.FC<SegmentItemProps> = ({
@@ -29,6 +32,7 @@ export const LessonItem: React.FC<SegmentItemProps> = ({
     index,
     isLoadingContent,
     isLoadingNarration,
+    isLoadingScript,
     activeTab,
     onUpdate,
     onRemove,
@@ -36,6 +40,7 @@ export const LessonItem: React.FC<SegmentItemProps> = ({
     onGenerateContent,
     onNarrate,
     onSetActiveTab,
+    onLoadScript,
 }) => {
     const getStatus = (): 'empty' | 'script' | 'audio' => {
         if (segment.generatedAudio) {
@@ -67,12 +72,22 @@ export const LessonItem: React.FC<SegmentItemProps> = ({
                         {isLoadingContent ? <LoadingSpinner /> : <LightbulbIcon />} Gerar Roteiro para este Segmento
                     </button>
                     <div className="border-b border-gray-700">
-                        <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-                            {['script', 'points', 'activity'].map((tab) => (
-                                <button key={tab} onClick={() => onSetActiveTab(tab as any)} className={`${activeTab === tab ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}>
-                                    {tab === 'script' ? 'Roteiro' : tab === 'points' ? 'Pontos-chave' : 'Tópico'}
-                                </button>
-                            ))}
+                        <nav className="-mb-px flex justify-between items-center" aria-label="Tabs">
+                            <div className="flex space-x-4">
+                                {['script', 'points', 'activity'].map((tab) => (
+                                    <button key={tab} onClick={() => onSetActiveTab(tab as any)} className={`${activeTab === tab ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}>
+                                        {tab === 'script' ? 'Roteiro' : tab === 'points' ? 'Pontos-chave' : 'Tópico'}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={onLoadScript}
+                                className="p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Carregar roteiro de um arquivo"
+                                disabled={isLoadingScript}
+                            >
+                                {isLoadingScript ? <LoadingSpinner className="h-4 w-4" /> : <LoadIcon className="h-4 w-4" />}
+                            </button>
                         </nav>
                     </div>
                     {activeTab === 'script' && <textarea value={segment.content} onChange={e => onUpdate('content', e.target.value)} rows={8} className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 font-mono text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none"></textarea>}

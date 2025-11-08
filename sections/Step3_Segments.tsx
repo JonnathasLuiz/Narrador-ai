@@ -27,6 +27,8 @@ interface Step3Props {
     onNarrateSegment: (id: number) => void;
     activeTab: Record<number, 'script' | 'points' | 'activity'>;
     setActiveTab: React.Dispatch<React.SetStateAction<Record<number, 'script' | 'points' | 'activity'>>>;
+    isLoadingScript: number | null;
+    onLoadScriptForSegment: (segmentId: number) => void;
 }
 
 export const Step3_Segments: React.FC<Step3Props> = ({
@@ -42,7 +44,9 @@ export const Step3_Segments: React.FC<Step3Props> = ({
     onGenerateSegmentContent,
     onNarrateSegment,
     activeTab,
-    setActiveTab
+    setActiveTab,
+    isLoadingScript,
+    onLoadScriptForSegment
 }) => {
     return (
         <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 space-y-4">
@@ -75,6 +79,7 @@ export const Step3_Segments: React.FC<Step3Props> = ({
                             index={index}
                             isLoadingContent={isLoading.content[segment.id]}
                             isLoadingNarration={isLoading.narration[segment.id]}
+                            isLoadingScript={isLoadingScript === segment.id}
                             activeTab={activeTab[segment.id] || 'script'}
                             onUpdate={(field, value) => onUpdateSegment(segment.id, field, value)}
                             onRemove={() => onRemoveSegment(segment.id)}
@@ -82,6 +87,7 @@ export const Step3_Segments: React.FC<Step3Props> = ({
                             onGenerateContent={() => onGenerateSegmentContent(segment.id)}
                             onNarrate={() => onNarrateSegment(segment.id)}
                             onSetActiveTab={(tab) => setActiveTab(prev => ({ ...prev, [segment.id]: tab }))}
+                            onLoadScript={() => onLoadScriptForSegment(segment.id)}
                         />
                     ))}
                 </div>

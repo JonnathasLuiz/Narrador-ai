@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useMemo, ChangeEvent, useRef, useEffect } from 'react';
 import { generatePodcastStructure, getSegmentContent, generateMultiSpeakerSpeech } from './services/geminiService';
-import { parseFile } from './services/fileParsers';
+import { parseFile, getFileContent } from './services/fileParsers';
 import { showPicker as showDrivePicker } from './services/googleDriveService';
 import { createWavBlob } from './utils/audioUtils';
 import type { Segment, Speaker } from './types';
@@ -44,6 +44,7 @@ const App: React.FC = () => {
         fullNarration: false,
         parsingFiles: false,
     });
+    const [isLoadingScript, setIsLoadingScript] = useState<number | null>(null);
     const [allContentProgress, setAllContentProgress] = useState({ current: 0, total: 0, title: '' });
     const [narrationProgress, setNarrationProgress] = useState({ current: 0, total: 0, title: '' });
     const [error, setError] = useState<string | null>(null);
@@ -54,8 +55,10 @@ const App: React.FC = () => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
     const [installPromptEvent, setInstallPromptEvent] = useState<Event | null>(null);
+    const [targetSegmentForScript, setTargetSegmentForScript] = useState<number | null>(null);
     const dragCounter = useRef(0);
     const loadProjectInputRef = useRef<HTMLInputElement>(null);
+    const loadScriptInputRef = useRef<HTMLInputElement>(null);
     
     useEffect(() => {
         const handleBeforeInstallPrompt = (e: Event) => {
@@ -274,6 +277,32 @@ const App: React.FC = () => {
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) processFiles(Array.from(e.target.files));
         e.target.value = '';
+    };
+
+    const handleLoadScriptClick = (segmentId: number) => {
+        setTargetSegmentForScript(segmentId);
+        loadScriptInputRef.current?.click();
+    };
+
+    const handleLoadScriptFile = async (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || targetSegmentForScript === null) {
+            if (e.target) e.target.value = '';
+            return;
+        };
+
+        setIsLoadingScript(targetSegmentForScript);
+        setError(null);
+        try {
+            const content = await getFileContent(file);
+            handleUpdateField<Segment, 'content'>(setSegments, targetSegmentForScript, 'content', content);
+        } catch (err: any) {
+            setError(`Falha ao carregar roteiro: ${err.message}`);
+        } finally {
+            setIsLoadingScript(null);
+            setTargetSegmentForScript(null);
+            if (e.target) e.target.value = '';
+        }
     };
 
     const handleDriveImport = useCallback(async () => {
@@ -559,6 +588,8 @@ const App: React.FC = () => {
                 <Header 
                     onOpenHelp={() => setIsHelpModalOpen(true)}
                     onApiKeyEdit={() => setApiKey(null)}
+                    onInstall={handleInstallClick}
+                    showInstallButton={!!installPromptEvent}
                 />
                  <input
                     type="file"
@@ -566,6 +597,13 @@ const App: React.FC = () => {
                     onChange={handleLoadProject}
                     className="hidden"
                     accept=".json"
+                />
+                 <input
+                    type="file"
+                    ref={loadScriptInputRef}
+                    onChange={handleLoadScriptFile}
+                    className="hidden"
+                    accept=".txt,.md,.docx,.pdf,.text"
                 />
 
                 {error && (
@@ -620,6 +658,8 @@ const App: React.FC = () => {
                     onNarrateSegment={handleNarrateSegment}
                     activeTab={activeTab}
                     setActiveTab={setActiveTab}
+                    isLoadingScript={isLoadingScript}
+                    onLoadScriptForSegment={handleLoadScriptClick}
                 />
 
                 <Step4_Export
