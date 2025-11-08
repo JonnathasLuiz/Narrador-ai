@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Segment } from '../types';
 import ProgressBar from '../components/ProgressBar';
@@ -7,6 +6,7 @@ import { ListIcon } from '../components/icons/ListIcon';
 import { MagicIcon } from '../components/icons/MagicIcon';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import { LessonItem as SegmentItem } from './LessonItem';
+import { SunIcon } from '../components/icons/SunIcon';
 
 interface Step3Props {
     segments: Segment[];
@@ -29,6 +29,7 @@ interface Step3Props {
     setActiveTab: React.Dispatch<React.SetStateAction<Record<number, 'script' | 'points' | 'activity'>>>;
     isLoadingScript: number | null;
     onLoadScriptForSegment: (segmentId: number) => void;
+    isWakeLockActive: boolean;
 }
 
 export const Step3_Segments: React.FC<Step3Props> = ({
@@ -46,7 +47,8 @@ export const Step3_Segments: React.FC<Step3Props> = ({
     activeTab,
     setActiveTab,
     isLoadingScript,
-    onLoadScriptForSegment
+    onLoadScriptForSegment,
+    isWakeLockActive
 }) => {
     return (
         <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 space-y-4">
@@ -64,11 +66,19 @@ export const Step3_Segments: React.FC<Step3Props> = ({
                 </div>
             </div>
             {isLoading.allContent && (
-                <ProgressBar
-                    current={allContentProgress.current}
-                    total={allContentProgress.total}
-                    text={`Gerando: ${allContentProgress.title}`}
-                />
+                <div className="space-y-2">
+                    <ProgressBar
+                        current={allContentProgress.current}
+                        total={allContentProgress.total}
+                        text={`Gerando: ${allContentProgress.title}`}
+                    />
+                    {isWakeLockActive && (
+                        <div className="flex items-center justify-center gap-2 text-xs text-yellow-400/80">
+                            <SunIcon className="h-4 w-4" />
+                            <span>Mantendo o computador ativo durante a geração...</span>
+                        </div>
+                    )}
+                </div>
             )}
             {segments.length > 0 && (
                 <div className="space-y-4 pt-4">

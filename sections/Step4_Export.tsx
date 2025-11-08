@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Segment } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -7,6 +6,7 @@ import ProgressBar from '../components/ProgressBar';
 import AudioPlayer from '../components/AudioPlayer';
 import { ZipIcon } from '../components/icons/ZipIcon';
 import { FileTextIcon } from '../components/icons/FileTextIcon';
+import { SunIcon } from '../components/icons/SunIcon';
 
 interface Step4Props {
     segments: Segment[];
@@ -16,6 +16,7 @@ interface Step4Props {
     fullPodcastAudio: string | null;
     onExportZip: () => void;
     onExportText: () => void;
+    isWakeLockActive: boolean;
 }
 
 export const Step4_Export: React.FC<Step4Props> = ({
@@ -25,7 +26,8 @@ export const Step4_Export: React.FC<Step4Props> = ({
     narrationProgress,
     fullPodcastAudio,
     onExportZip,
-    onExportText
+    onExportText,
+    isWakeLockActive
 }) => {
     return (
         <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 space-y-6">
@@ -38,12 +40,18 @@ export const Step4_Export: React.FC<Step4Props> = ({
                     {isLoading ? <LoadingSpinner /> : <SpeakerIcon className="h-5 w-5" />} Gerar Áudio Completo
                 </button>
                 {isLoading && narrationProgress.total > 0 && (
-                    <div className="pt-2">
+                    <div className="pt-2 space-y-2">
                         <ProgressBar
                             current={narrationProgress.current}
                             total={narrationProgress.total}
                             text={`Narrando: ${narrationProgress.title}`}
                         />
+                         {isWakeLockActive && (
+                            <div className="flex items-center justify-center gap-2 text-xs text-yellow-400/80">
+                                <SunIcon className="h-4 w-4" />
+                                <span>Mantendo o computador ativo durante a narração...</span>
+                            </div>
+                        )}
                     </div>
                 )}
                 {fullPodcastAudio && !isLoading && <AudioPlayer base64Pcm={fullPodcastAudio} />}

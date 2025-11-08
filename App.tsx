@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, ChangeEvent, useRef, useEffect } from 'react';
 import { generatePodcastStructure, getSegmentContent, generateMultiSpeakerSpeech } from './services/geminiService';
 import { parseFile, getFileContent } from './services/fileParsers';
@@ -56,10 +55,41 @@ const App: React.FC = () => {
     const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
     const [installPromptEvent, setInstallPromptEvent] = useState<Event | null>(null);
     const [targetSegmentForScript, setTargetSegmentForScript] = useState<number | null>(null);
+    const [isWakeLockActive, setIsWakeLockActive] = useState(false);
     const dragCounter = useRef(0);
     const loadProjectInputRef = useRef<HTMLInputElement>(null);
     const loadScriptInputRef = useRef<HTMLInputElement>(null);
+    const wakeLockSentinel = useRef<any>(null);
     
+    // --- Wake Lock API Logic ---
+    const acquireWakeLock = useCallback(async () => {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+                setIsWakeLockActive(true);
+                console.log('Wake Lock ativado.');
+            } catch (err: any) {
+                console.error(`Não foi possível ativar o Wake Lock: ${err.name}, ${err.message}`);
+            }
+        } else {
+            console.warn('A API Wake Lock não é suportada neste navegador.');
+        }
+    }, []);
+
+    const releaseWakeLock = useCallback(async () => {
+        if (wakeLockSentinel.current) {
+            try {
+                await wakeLockSentinel.current.release();
+                wakeLockSentinel.current = null;
+                setIsWakeLockActive(false);
+                console.log('Wake Lock liberado.');
+            } catch (err: any) {
+                 console.error(`Não foi possível liberar o Wake Lock: ${err.name}, ${err.message}`);
+            }
+        }
+    }, []);
+
+
     useEffect(() => {
         const handleBeforeInstallPrompt = (e: Event) => {
             e.preventDefault();
@@ -393,33 +423,37 @@ const App: React.FC = () => {
         setIsLoading(prev => ({ ...prev, allContent: true }));
         setAllContentProgress({ current: 0, total: segments.length, title: '' });
     
-        let generatedCount = 0;
-        let currentSegments = segments;
+        await acquireWakeLock();
+        try {
+            let generatedCount = 0;
+            let currentSegments = segments;
+        
+            for (const [index, segment] of segments.entries()) {
+                setAllContentProgress({ current: index + 1, total: segments.length, title: segment.title });
+                try {
+                    const content = await getSegmentContent(apiKey, podcastIdea, segment.title, speakers, podcastSources, segment.description);
+                    
+                    currentSegments = currentSegments.map(s =>
+                        s.id === segment.id ? { ...s, ...content } : s
+                    );
     
-        for (const [index, segment] of segments.entries()) {
-            setAllContentProgress({ current: index + 1, total: segments.length, title: segment.title });
-            try {
-                const content = await getSegmentContent(apiKey, podcastIdea, segment.title, speakers, podcastSources, segment.description);
-                
-                currentSegments = currentSegments.map(s =>
-                    s.id === segment.id ? { ...s, ...content } : s
-                );
-
-                setSegments(currentSegments);
-                generatedCount++;
-            } catch (error) {
-                console.error(`Falha ao gerar conteúdo para "${segment.title}":`, error);
-                handleApiError(error);
-                break;
+                    setSegments(currentSegments);
+                    generatedCount++;
+                } catch (error) {
+                    console.error(`Falha ao gerar conteúdo para "${segment.title}":`, error);
+                    handleApiError(error);
+                    break;
+                }
             }
+        
+            if (generatedCount < segments.length && !error) {
+                setError("Alguns conteúdos não puderam ser gerados. Tente novamente para os segmentos individuais.");
+            }
+        } finally {
+            setIsLoading(prev => ({ ...prev, allContent: false }));
+            await releaseWakeLock();
         }
-    
-        if (generatedCount < segments.length && !error) {
-            setError("Alguns conteúdos não puderam ser gerados. Tente novamente para os segmentos individuais.");
-        }
-    
-        setIsLoading(prev => ({ ...prev, allContent: false }));
-    }, [segments, podcastIdea, speakers, podcastSources, error, apiKey]);
+    }, [segments, podcastIdea, speakers, podcastSources, error, apiKey, acquireWakeLock, releaseWakeLock]);
 
     const handleNarrateSegment = useCallback(async (segmentId: number) => {
         if (!apiKey) return;
@@ -466,46 +500,50 @@ const App: React.FC = () => {
     
         setNarrationProgress({ current: 0, total: segmentsToProcess.length, title: '' });
         
-        let updatedSegments = segments;
-        let narrationErrorCount = 0;
-    
-        for (const [index, segment] of segmentsToProcess.entries()) {
-            setNarrationProgress({ current: index + 1, total: segmentsToProcess.length, title: segment.title });
-            
-            if (segment.content && !segment.generatedAudio) {
-                try {
-                    const audioB64 = await generateMultiSpeakerSpeech(apiKey, segment.content, speakers);
-                    
-                    updatedSegments = updatedSegments.map(s =>
-                        s.id === segment.id ? { ...s, generatedAudio: audioB64 } : s
-                    );
-                    setSegments(updatedSegments);
-                } catch (error) {
-                    console.error(`Falha ao narrar o segmento "${segment.title}":`, error);
-                    narrationErrorCount++;
-                    handleApiError(error);
-                    break; 
+        await acquireWakeLock();
+        try {
+            let updatedSegments = segments;
+            let narrationErrorCount = 0;
+        
+            for (const [index, segment] of segmentsToProcess.entries()) {
+                setNarrationProgress({ current: index + 1, total: segmentsToProcess.length, title: segment.title });
+                
+                if (segment.content && !segment.generatedAudio) {
+                    try {
+                        const audioB64 = await generateMultiSpeakerSpeech(apiKey, segment.content, speakers);
+                        
+                        updatedSegments = updatedSegments.map(s =>
+                            s.id === segment.id ? { ...s, generatedAudio: audioB64 } : s
+                        );
+                        setSegments(updatedSegments);
+                    } catch (error) {
+                        console.error(`Falha ao narrar o segmento "${segment.title}":`, error);
+                        narrationErrorCount++;
+                        handleApiError(error);
+                        break; 
+                    }
                 }
             }
-        }
+            
+            const allAudioParts = updatedSegments
+                .filter(segment => segment.generatedAudio)
+                .map(segment => segment.generatedAudio!);
         
-        const allAudioParts = updatedSegments
-            .filter(segment => segment.generatedAudio)
-            .map(segment => segment.generatedAudio!);
-    
-        if (allAudioParts.length > 0) {
-            const combinedAudio = allAudioParts.join('');
-            setFullPodcastAudio(combinedAudio);
-        } else if (narrationErrorCount === 0) {
-             setError("Nenhum áudio pôde ser gerado.");
+            if (allAudioParts.length > 0) {
+                const combinedAudio = allAudioParts.join('');
+                setFullPodcastAudio(combinedAudio);
+            } else if (narrationErrorCount === 0) {
+                 setError("Nenhum áudio pôde ser gerado.");
+            }
+            
+            if (narrationErrorCount > 0 && !error) {
+                setError(`Não foi possível narrar ${narrationErrorCount} segmento(s). Verifique os roteiros e tente novamente.`);
+            }
+        } finally {
+            setIsLoading(prev => ({ ...prev, fullNarration: false }));
+            await releaseWakeLock();
         }
-        
-        if (narrationErrorCount > 0 && !error) {
-            setError(`Não foi possível narrar ${narrationErrorCount} segmento(s). Verifique os roteiros e tente novamente.`);
-        }
-    
-        setIsLoading(prev => ({ ...prev, fullNarration: false }));
-    }, [segments, speakers, hasDuplicateSpeakerNames, error, apiKey]);
+    }, [segments, speakers, hasDuplicateSpeakerNames, error, apiKey, acquireWakeLock, releaseWakeLock]);
 
     const handleExportText = useCallback(() => {
         let fullText = `# ${podcastIdea || 'Podcast Sem Título'}\n\n`;
@@ -660,6 +698,7 @@ const App: React.FC = () => {
                     setActiveTab={setActiveTab}
                     isLoadingScript={isLoadingScript}
                     onLoadScriptForSegment={handleLoadScriptClick}
+                    isWakeLockActive={isWakeLockActive}
                 />
 
                 <Step4_Export
@@ -670,6 +709,7 @@ const App: React.FC = () => {
                     fullPodcastAudio={fullPodcastAudio}
                     onExportZip={handleExportZip}
                     onExportText={handleExportText}
+                    isWakeLockActive={isWakeLockActive}
                 />
             </div>
             <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
