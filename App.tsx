@@ -17,6 +17,7 @@ import { VOICES } from './constants';
 import { ProjectManagement } from './sections/ProjectManagement';
 import ImportProjectModal from './components/modals/ImportProjectModal';
 import LoadingSpinner from './components/LoadingSpinner';
+import { LiveScriptingStudio } from './sections/LiveNarrationStudio';
 
 const PROJECT_STATE_KEY = 'ia-podcast-narrator-state';
 const API_KEY_LOCAL_STORAGE_KEY = 'gemini-api-key';
@@ -68,8 +69,22 @@ const App: React.FC = () => {
                 wakeLockSentinel.current = await navigator.wakeLock.request('screen');
                 setIsWakeLockActive(true);
                 console.log('Wake Lock ativado.');
+
+                // Adiciona um listener para caso o lock seja liberado pelo sistema (ex: aba em segundo plano)
+                // para que a UI possa ser atualizada.
+                wakeLockSentinel.current.addEventListener('release', () => {
+                    setIsWakeLockActive(false);
+                    console.log('Wake Lock liberado: a tela pode desligar agora.');
+                });
             } catch (err: any) {
-                console.error(`Não foi possível ativar o Wake Lock: ${err.name}, ${err.message}`);
+                // Um 'NotAllowedError' é esperado em ambientes restritos como iframes.
+                // Em vez de registrar um erro assustador, registramos um aviso informativo,
+                // pois o aplicativo pode continuar a funcionar normalmente sem ele.
+                if (err.name === 'NotAllowedError') {
+                    console.warn('A permissão para Wake Lock foi negada. A tela pode desligar durante processos longos. Isso é normal em alguns ambientes de navegador.');
+                } else {
+                    console.error(`Não foi possível ativar o Wake Lock: ${err.name}, ${err.message}`);
+                }
             }
         } else {
             console.warn('A API Wake Lock não é suportada neste navegador.');
@@ -135,7 +150,7 @@ const App: React.FC = () => {
                 podcastSources,
                 uploadedFileNames,
                 speakers,
-                segments: segments.map(({ generatedAudio, isExpanded, ...rest }) => rest),
+                segments: segments.map(({ isExpanded, ...rest }) => rest),
             };
             localStorage.setItem(PROJECT_STATE_KEY, JSON.stringify(stateToSave));
         } catch (e) {
@@ -215,7 +230,7 @@ const App: React.FC = () => {
                 podcastSources,
                 uploadedFileNames,
                 speakers,
-                segments: segments.map(({ generatedAudio, isExpanded, ...rest }) => rest),
+                segments: segments.map(({ isExpanded, ...rest }) => rest),
             };
             const blob = new Blob([JSON.stringify(stateToSave, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
@@ -588,6 +603,17 @@ const App: React.FC = () => {
         }
     }, [segments, podcastIdea]);
 
+    const handleAddLiveTranscriptAsSegment = useCallback((transcript: string) => {
+        const newSegment: Segment = {
+            id: Date.now(),
+            title: `Segmento Interativo - ${new Date().toLocaleTimeString()}`,
+            content: transcript,
+            isExpanded: true,
+            description: 'Este roteiro foi gerado a partir de uma sessão de roteiro interativo.',
+        };
+        setSegments(prev => [...prev, newSegment]);
+    }, []);
+
     if (!isStateLoaded) {
         return (
             <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
@@ -680,6 +706,13 @@ const App: React.FC = () => {
                     onAddSpeaker={handleAddSpeaker}
                     onRemoveSpeaker={handleRemoveSpeaker}
                     hasDuplicateSpeakerNames={hasDuplicateSpeakerNames}
+                />
+
+                <LiveScriptingStudio
+                    apiKey={apiKey}
+                    speakers={speakers}
+                    onSessionEnd={handleAddLiveTranscriptAsSegment}
+                    onError={setError}
                 />
 
                 <Step3_Segments
